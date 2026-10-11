@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Punch — Time Ledger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#15181c; --panel:#1c2126; --panel-2:#20262c; --edge:#2b323a;
+    --ink:#e9e6de; --ink-dim:#8b9199; --amber:#ffb020; --amber-dim:#6b5324;
+    --teal:#4fd6c4; --violet:#b79bff; --rose:#ff8f8f;
+    --mono:'IBM Plex Mono', ui-monospace, monospace;
+    --sans:'IBM Plex Sans', system-ui, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:radial-gradient(1200px 600px at 10% -10%, #1c222a 0%, transparent 60%), var(--bg);
+    color:var(--ink); font-family:var(--sans);
+    padding:32px 18px 60px; min-height:100vh;
+    padding-top:calc(32px + env(safe-area-inset-top, 0px));
+    padding-bottom:calc(60px + env(safe-area-inset-bottom, 0px));
+  }
+  .wrap{max-width:760px; margin:0 auto;}
+  header{display:flex; justify-content:space-between; align-items:flex-end; border-bottom:1px solid var(--edge); padding-bottom:18px; margin-bottom:22px;}
+  .brand{display:flex; flex-direction:column; gap:2px;}
+  .brand .mark{font-family:var(--mono); font-size:11px; letter-spacing:.22em; color:var(--amber); text-transform:uppercase;}
+  .brand h1{margin:0; font-size:26px; font-weight:600; letter-spacing:-0.01em;}
+  header .clock-icon{font-family:var(--mono); font-size:12px; color:var(--ink-dim); text-align:right; line-height:1.5;}
+  .card{background:var(--panel); border:1px solid var(--edge); border-radius:10px; padding:20px; margin-bottom:18px; position:relative; overflow:hidden;}
+  .card h2{margin:0 0 12px; font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-dim); font-weight:600;}
+  textarea{width:100%; min-height:110px; background:var(--bg); border:1px solid var(--edge); border-radius:8px; color:var(--ink); font-family:var(--mono); font-size:13.5px; line-height:1.6; padding:12px 14px; resize:vertical; outline:none;}
+  textarea:focus{border-color:var(--amber-dim);}
+  textarea::placeholder{color:#4d545c;}
+  .row{display:flex; gap:10px; margin-top:12px; flex-wrap:wrap; align-items:center;}
+  button{font-family:var(--sans); font-weight:600; font-size:13.5px; border-radius:7px; padding:9px 16px; border:1px solid var(--edge); background:var(--panel-2); color:var(--ink); cursor:pointer; transition:border-color .15s ease, transform .1s ease;}
+  button:hover{border-color:var(--amber-dim);}
+  button:active{transform:scale(.97);}
+  button.primary{background:var(--amber); color:#1a1300; border-color:var(--amber);}
+  button.primary:hover{filter:brightness(1.06);}
+  .hint{font-size:12px; color:var(--ink-dim); margin-top:2px;}
+  .total-display{display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap;}
+  .led{font-family:var(--mono); font-size:44px; font-weight:600; color:var(--amber); letter-spacing:.02em; text-shadow:0 0 18px rgba(255,176,32,.35);}
+  .led .unit{font-size:16px; color:var(--ink-dim); margin-left:6px; text-shadow:none;}
+  .decimal{font-family:var(--mono); font-size:13px; color:var(--ink-dim);}
+  .stat-mini{text-align:right;}
+  .stat-mini .n{font-family:var(--mono); font-size:20px; color:var(--ink);}
+  .stat-mini .l{font-size:11px; color:var(--ink-dim); letter-spacing:.08em; text-transform:uppercase;}
+  .ledger{border-top:1px dashed var(--edge);}
+  .entry{display:grid; grid-template-columns:20px 1fr auto; gap:10px; align-items:center; padding:10px 0; border-bottom:1px dashed var(--edge); font-family:var(--mono); font-size:13px;}
+  .entry:last-child{border-bottom:none;}
+  .entry .idx{color:var(--ink-dim); font-size:11px;}
+  .entry .range{color:var(--ink);}
+  .entry .cat{font-family:var(--sans); font-size:11px; padding:2px 8px; border-radius:20px; margin-left:8px; display:inline-block; border:1px solid var(--edge); color:var(--ink-dim); vertical-align:middle;}
+  .entry .dur{font-weight:600; color:var(--amber); text-align:right; white-space:nowrap;}
+  .entry .flag{color:var(--rose); font-size:11px; margin-left:6px;}
+  .cat-row{margin-bottom:12px;}
+  .cat-row:last-child{margin-bottom:0;}
+  .cat-row .top{display:flex; justify-content:space-between; font-family:var(--mono); font-size:12.5px; margin-bottom:5px;}
+  .cat-row .top .name{color:var(--ink); text-transform:capitalize;}
+  .cat-row .top .val{color:var(--ink-dim);}
+  .bar-track{height:6px; background:var(--panel-2); border-radius:4px; overflow:hidden;}
+  .bar-fill{height:100%; border-radius:4px; transition:width .7s cubic-bezier(.2,.8,.2,1);}
+  .stamp{position:absolute; top:14px; right:18px; font-family:var(--mono); font-size:11px; letter-spacing:.08em; color:var(--amber); border:1.5px solid var(--amber); border-radius:5px; padding:3px 9px; text-transform:uppercase; opacity:0; transform:rotate(-8deg) scale(1.4); pointer-events:none;}
+  .stamp.show{animation:stampIn .55s cubic-bezier(.2,.9,.3,1.4) forwards;}
+  @keyframes stampIn{
+    0%{opacity:0; transform:rotate(-8deg) scale(2.2);}
+    60%{opacity:1; transform:rotate(-8deg) scale(.92);}
+    100%{opacity:1; transform:rotate(-8deg) scale(1);}
+  }
+  .remark{font-family:var(--sans); font-size:13px; color:var(--ink-dim); margin-top:10px; padding-top:10px; border-top:1px dashed var(--edge); display:none;}
+  .remark.show{display:block;}
+  .remark .em{margin-right:6px;}
+  .fact-chip{display:inline-flex; align-items:center; gap:6px; font-family:var(--mono); font-size:11px; color:var(--teal); border:1px solid rgba(79,214,196,.35); background:rgba(79,214,196,.07); padding:4px 10px; border-radius:20px; margin-top:12px;}
+  button.primary.punching{animation:punch .28s ease;}
+  @keyframes punch{0%{transform:scale(1);} 40%{transform:scale(.92) translateY(2px);} 100%{transform:scale(1);}}
+  .empty{color:var(--ink-dim); font-size:13px; font-family:var(--mono); padding:6px 0;}
+  .note{font-size:12px; color:var(--rose); margin-top:10px; font-family:var(--sans);}
+  footer{text-align:center; color:var(--ink-dim); font-size:11px; font-family:var(--mono); margin-top:28px; letter-spacing:.05em;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <div class="mark">◷ Time Ledger</div>
+      <h1>Punch</h1>
+    </div>
+    <div class="clock-icon">paste a timeline<br>get totals + category split</div>
+  </header>
+
+  <div class="card">
+    <h2>Timeline Input</h2>
+    <textarea id="input" placeholder="1:30 am - 2:10 am (Available), 2:11 am - 4:11 am (available), 7:06 pm - 10:03 pm (available chat)
+
+Categories in brackets are optional. Commas, periods, and 'and' between entries are all fine."></textarea>
+    <div class="row">
+      <button class="primary" id="calcBtn">Calculate</button>
+      <button id="clearBtn">Clear</button>
+      <button id="copyBtn">Copy Summary</button>
+    </div>
+    <div class="hint" id="hint">Times like 12 am / 12 pm, overnight ranges, and mixed formats are all handled. Enter calculates; Shift+Enter adds a new line.</div>
+  </div>
+
+  <div class="card">
+    <div class="stamp" id="stamp">Punched ✓</div>
+    <h2>Total</h2>
+    <div class="total-display">
+      <div>
+        <div class="led" id="ledTotal">0<span class="unit">h</span> 0<span class="unit">m</span></div>
+        <div class="decimal" id="decTotal">≈ 0.00 hours</div>
+      </div>
+      <div class="stat-mini">
+        <div class="n" id="entryCount">0</div>
+        <div class="l">entries</div>
+      </div>
+    </div>
+    <div class="remark" id="remark"></div>
+    <div id="factChipWrap"></div>
+    <div class="note" id="overnightNote" style="display:none;"></div>
+  </div>
+
+  <div class="card">
+    <h2>Shift Target</h2>
+    <div class="row" style="margin-top:0;">
+      <label style="font-family:var(--mono); font-size:13px; color:var(--ink-dim); display:flex; align-items:center; gap:8px;">
+        Target
+        <input id="targetHours" type="number" min="0" step="0.5" value="8"
+          style="width:64px; background:var(--bg); border:1px solid var(--edge); border-radius:6px; color:var(--ink); font-family:var(--mono); font-size:13.5px; padding:6px 8px;">
+        hours
+      </label>
+    </div>
+    <div id="shiftTargetOut" style="margin-top:14px;"></div>
+  </div>
+
+  <div class="card" id="categoryCard" style="display:none;">
+    <h2>By Category</h2>
+    <div id="categoryList"></div>
+  </div>
+
+  <div class="card">
+    <h2>Interval Breakdown</h2>
+    <div class="ledger" id="ledger">
+      <div class="empty">No entries yet — paste a timeline above and hit Calculate.</div>
+    </div>
+  </div>
+
+  <footer>parses on your device · nothing is sent anywhere</footer>
+</div>
+
+<script>
+const catColors = ['#ffb020', '#4fd6c4', '#b79bff', '#ff8f8f', '#7ec8ff', '#c9e26b'];
+const catColorMap = {};
+let lastEntries = [];
+let prevTotalMins = 0;
+let animToken = 0;
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function parseTimeToMinutes(str) {
+  str = str.trim().toLowerCase();
+  const m = str.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)$/);
+  if (!m) return null;
+  let h = parseInt(m[1], 10);
+  const min = m[2] ? parseInt(m[2], 10) : 0;
+  if (h < 1 || h > 12 || min > 59) return null; // reject things like 13 pm or 5:75 am
+  if (h === 12) h = 0;
+  if (m[3] === 'pm') h += 12;
+  return h * 60 + min;
+}
+
+function fmtClock(str) {
+  return str.trim().replace(/\s+/g, ' ').replace(/am|pm/i, s => s.toUpperCase());
+}
+
+function fmtDuration(mins) {
+  return `${Math.floor(mins / 60)}h ${mins % 60}m`;
+}
+
+function fmtClockFromMinutes(mins) {
+  mins = ((mins % 1440) + 1440) % 1440;
+  let h = Math.floor(mins / 60);
+  const m = mins % 60;
+  const period = h >= 12 ? 'PM' : 'AM';
+  h = h % 12;
+  if (h === 0) h = 12;
+  return `${h}:${String(m).padStart(2, '0')} ${period}`;
+}
+
+function parseInput(text) {
+  // accepts "-", en/em dash, or "to" between times
+  const regex = /\b(\d{1,2}(?::\d{2})?\s*(?:am|pm))\s*(?:-|–|—|to)\s*(\d{1,2}(?::\d{2})?\s*(?:am|pm))\b\s*(?:\(([^)]+)\))?/gi;
+  const entries = [];
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    const startStr = match[1], endStr = match[2], cat = match[3] ? match[3].trim() : null;
+    const start = parseTimeToMinutes(startStr);
+    const end = parseTimeToMinutes(endStr);
+    if (start === null || end === null) continue;
+    let duration = end - start;
+    let overnight = false;
+    if (duration <= 0) { duration += 1440; overnight = true; }
+    entries.push({
+      startStr: fmtClock(startStr),
+      endStr: fmtClock(endStr),
+      start, end,
+      category: cat || null,
+      duration,
+      overnight
+    });
+  }
+  return entries;
+}
+
+function getRemark(totalMins) {
+  const h = totalMins / 60;
+  if (h === 0) return null;
+  if (h < 0.5) return ['⚡', "Blink and you'd miss it."];
+  if (h < 1) return ['🫤', "Barely worth logging, but here we are."];
+  if (h < 2) return ['☕', "Coffee-break territory."];
+  if (h < 3.5) return ['🎬', "About a movie and a half, if movies paid you."];
+  if (h < 5) return ['📚', "A solid half-shift."];
+  if (h < 6.5) return ['🛠️', "Standard workday range — nothing dramatic."];
+  if (h < 8) return ['🌤️', "Creeping up on a full 9-to-5."];
+  if (h < 9.5) return ['🕗', "A textbook full day."];
+  if (h < 12) return ['🔥', "That's a long one — hope there were breaks."];
+  if (h < 16) return ['🌙', "You basically lived at this today."];
+  return ['🚨', "That's most of 24 hours. Go drink some water."];
+}
+
+function computeGapFact(entries) {
+  if (entries.length < 2) return null;
+  let totalGap = 0, count = 0;
+  for (let i = 0; i < entries.length - 1; i++) {
+    let gap = entries[i + 1].start - entries[i].end;
+    if (gap < 0) gap += 1440;
+    if (gap > 0 && gap < 600) { totalGap += gap; count++; }
+  }
+  if (count === 0) return null;
+  return `${count} break${count > 1 ? 's' : ''} in between, totalling ${fmtDuration(totalGap)}`;
+}
+
+function setLed(mins) {
+  document.getElementById('ledTotal').innerHTML =
+    `${Math.floor(mins / 60)}<span class="unit">h</span> ${mins % 60}<span class="unit">m</span>`;
+}
+
+function animateCount(fromMins, toMins) {
+  const token = ++animToken;
+  const duration = 500;
+  const start = performance.now();
+  function tick(now) {
+    if (token !== animToken) return; // a newer calculation took over
+    const p = Math.min((now - start) / duration, 1);
+    const eased = 1 - Math.pow(1 - p, 3);
+    setLed(Math.round(fromMins + (toMins - fromMins) * eased));
+    if (p < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+function updateShiftTarget() {
+  const out = document.getElementById('shiftTargetOut');
+  const targetHours = parseFloat(document.getElementById('targetHours').value);
+
+  if (!targetHours || targetHours <= 0 || lastEntries.length === 0) {
+    out.innerHTML = '<div class="empty">Calculate a timeline above to see this.</div>';
+    return;
+  }
+
+  const totalMins = lastEntries.reduce((sum, e) => sum + e.duration, 0);
+  const remaining = Math.round(targetHours * 60) - totalMins;
+  const lastEnd = lastEntries[lastEntries.length - 1].end;
+
+  if (remaining <= 0) {
+    out.innerHTML = `
+      <div class="led" style="font-size:26px; color:var(--teal); text-shadow:none;">Target reached ✓</div>
+      <div class="decimal" style="margin-top:4px;">You're ${fmtDuration(-remaining)} over your ${targetHours}h target.</div>`;
+  } else {
+    out.innerHTML = `
+      <div class="led" style="font-size:26px;">${fmtDuration(remaining)}<span class="unit" style="margin-left:8px;">left</span></div>
+      <div class="decimal" style="margin-top:4px;">≈ ${(remaining / 60).toFixed(2)} hours to reach ${targetHours}h</div>
+      <div class="fact-chip" style="margin-top:10px;">🕒 Clock out around ${fmtClockFromMinutes(lastEnd + remaining)} if you continue from your last logged entry</div>`;
+  }
+}
+
+function render(entries) {
+  const ledger = document.getElementById('ledger');
+  const categoryCard = document.getElementById('categoryCard');
+  const categoryList = document.getElementById('categoryList');
+  const overnightNote = document.getElementById('overnightNote');
+  const remarkEl = document.getElementById('remark');
+  const factWrap = document.getElementById('factChipWrap');
+
+  document.getElementById('entryCount').textContent = entries.length;
+
+  if (entries.length === 0) {
+    animToken++; // cancel any running count animation
+    ledger.innerHTML = '<div class="empty">No valid intervals found. Check the format, e.g. 1:30 am - 2:10 am (Available)</div>';
+    setLed(0);
+    document.getElementById('decTotal').textContent = '≈ 0.00 hours';
+    categoryCard.style.display = 'none';
+    overnightNote.style.display = 'none';
+    remarkEl.classList.remove('show');
+    factWrap.innerHTML = '';
+    prevTotalMins = 0;
+    return;
+  }
+
+  let ledgerHtml = '';
+  let anyOvernight = false;
+  entries.forEach((e, i) => {
+    if (e.overnight) anyOvernight = true;
+    ledgerHtml += `<div class="entry">
+      <div class="idx">${i + 1}</div>
+      <div class="range">${e.startStr} – ${e.endStr}${e.category ? `<span class="cat">${esc(e.category)}</span>` : ''}${e.overnight ? '<span class="flag">overnight</span>' : ''}</div>
+      <div class="dur">${fmtDuration(e.duration)}</div>
+    </div>`;
+  });
+  ledger.innerHTML = ledgerHtml;
+
+  overnightNote.style.display = anyOvernight ? 'block' : 'none';
+  if (anyOvernight) overnightNote.textContent = '⚠ One or more ranges were treated as crossing midnight into the next day.';
+
+  const totalMins = entries.reduce((sum, e) => sum + e.duration, 0);
+  animateCount(prevTotalMins, totalMins);
+  document.getElementById('decTotal').textContent = `≈ ${(totalMins / 60).toFixed(2)} hours`;
+  prevTotalMins = totalMins;
+
+  const remarkPair = getRemark(totalMins);
+  if (remarkPair) {
+    remarkEl.innerHTML = `<span class="em">${remarkPair[0]}</span>${remarkPair[1]}`;
+    remarkEl.classList.add('show');
+  } else {
+    remarkEl.classList.remove('show');
+  }
+
+  const gapFact = computeGapFact(entries);
+  factWrap.innerHTML = gapFact ? `<div class="fact-chip">⏸ ${gapFact}</div>` : '';
+
+  const withCat = entries.filter(e => e.category);
+  if (withCat.length === 0) {
+    categoryCard.style.display = 'none';
+  } else {
+    categoryCard.style.display = 'block';
+    const totals = categoryTotals(withCat);
+    const maxVal = Math.max(...Object.values(totals));
+    let catHtml = '';
+    Object.keys(totals).forEach(key => {
+      if (!catColorMap[key]) {
+        // index by how many colors are already assigned so new categories never reuse a color
+        catColorMap[key] = catColors[Object.keys(catColorMap).length % catColors.length];
+      }
+      const mins = totals[key];
+      catHtml += `<div class="cat-row">
+        <div class="top">
+          <span class="name">${esc(key)}</span>
+          <span class="val">${fmtDuration(mins)} · ${(mins / 60).toFixed(2)}h</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill" style="width:${(mins / maxVal) * 100}%; background:${catColorMap[key]}"></div></div>
+      </div>`;
+    });
+    categoryList.innerHTML = catHtml;
+  }
+}
+
+function categoryTotals(list) {
+  const totals = {};
+  list.forEach(e => {
+    const key = e.category.toLowerCase();
+    totals[key] = (totals[key] || 0) + e.duration;
+  });
+  return totals;
+}
+
+function calculate() {
+  lastEntries = parseInput(document.getElementById('input').value);
+  render(lastEntries);
+  updateShiftTarget();
+
+  const stamp = document.getElementById('stamp');
+  stamp.classList.remove('show');
+  void stamp.offsetWidth;
+  if (lastEntries.length > 0) stamp.classList.add('show');
+
+  const btn = document.getElementById('calcBtn');
+  btn.classList.remove('punching');
+  void btn.offsetWidth;
+  btn.classList.add('punching');
+}
+
+function fallbackCopy(t) {
+  return new Promise((resolve, reject) => {
+    const ta = document.createElement('textarea');
+    ta.value = t;
+    ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0;';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) {}
+    document.body.removeChild(ta);
+    ok ? resolve() : reject();
+  });
+}
+
+function copyText(t) {
+  if (navigator.clipboard && window.isSecureContext) {
+    return navigator.clipboard.writeText(t).catch(() => fallbackCopy(t));
+  }
+  return fallbackCopy(t);
+}
+
+document.getElementById('targetHours').addEventListener('input', updateShiftTarget);
+document.getElementById('calcBtn').addEventListener('click', calculate);
+
+document.getElementById('clearBtn').addEventListener('click', () => {
+  document.getElementById('input').value = '';
+  lastEntries = [];
+  render([]);
+  updateShiftTarget();
+  document.getElementById('stamp').classList.remove('show');
+});
+
+document.getElementById('copyBtn').addEventListener('click', () => {
+  if (lastEntries.length === 0) return;
+  const lines = lastEntries.map(e =>
+    `${e.startStr} - ${e.endStr}${e.category ? ' (' + e.category + ')' : ''} = ${fmtDuration(e.duration)}`
+  );
+  const totalMins = lastEntries.reduce((s, e) => s + e.duration, 0);
+  lines.push('');
+  lines.push(`Total : ${fmtDuration(totalMins)} (≈${(totalMins / 60).toFixed(2)} hours)`);
+
+  const withCat = lastEntries.filter(e => e.category);
+  if (withCat.length > 0) {
+    const totals = categoryTotals(withCat);
+    lines.push('', 'By category:');
+    Object.keys(totals).forEach(key => {
+      lines.push(`${key}: ${fmtDuration(totals[key])} (≈${(totals[key] / 60).toFixed(2)} hours)`);
+    });
+  }
+
+  const btn = document.getElementById('copyBtn');
+  const original = btn.textContent;
+  copyText(lines.join('\n'))
+    .then(() => { btn.textContent = 'Copied ✓'; })
+    .catch(() => { btn.textContent = 'Copy failed'; })
+    .finally(() => setTimeout(() => { btn.textContent = original; }, 1500));
+});
+
+// Enter calculates; Shift+Enter still inserts a newline
+document.getElementById('input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    calculate();
+  }
+});
+</script>
+</body>
+</html>
